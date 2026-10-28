@@ -66,15 +66,31 @@ li.done .chk{background:var(--fg,#0c0c0c)}
 .dots u{display:block;width:16px;height:16px;border-radius:5px;background:var(--field)}
 .dots u.on{background:var(--lime)}
 .hrow .ic{color:var(--sub)}
+.seg{display:flex;gap:6px;margin:0 0 14px}
+.seg button{flex:1;border:0;border-radius:99px;padding:12px;background:var(--panel);color:var(--sub);font-size:16px;font-weight:900}
+.seg button.on{background:var(--text);color:var(--bg)}
+#notesView[hidden],#tasksView[hidden]{display:none}
+.nedit{display:grid;gap:10px;background:var(--panel);border-radius:28px;padding:14px;margin-bottom:12px}
+.nedit textarea{min-height:130px;font-size:16px}
+.nrow{display:flex;gap:8px}
+.nrow .btn{padding:12px 24px}
+#nq{margin-bottom:12px;border-radius:99px;padding:12px 18px}
+#nlist{display:grid;gap:8px}
+.ncard{border-radius:30px;padding:16px 14px 12px 18px;display:grid;gap:6px}
+.nt{font-size:20px;font-weight:900;line-height:1.25;word-break:break-word}
+.nb{font-size:14px;opacity:.85;white-space:pre-wrap;word-break:break-word;font-weight:600;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.nf{display:flex;justify-content:space-between;align-items:center;font-size:12px;opacity:.9}
 </style>
 </head>
 <body>
 <main>
   <h1>TODAY<span class="dot">•</span></h1>
   <p class="sub" id="dt"></p>
+  <div class="seg" id="seg"><button class="on" data-p="tasks">✓ タスク</button><button data-p="notes">📝 メモ</button></div>
   <div class="bar"><i id="bar"></i></div>
   <div class="stat" id="stat"></div>
   <div id="alerts"></div>
+  <div id="tasksView">
   <div class="add">
     <input id="in" placeholder="何をやる?(Enterで追加)" autocomplete="off">
     <button class="btn" id="addBtn">追加</button>
@@ -102,18 +118,27 @@ li.done .chk{background:var(--fg,#0c0c0c)}
   <p class="note" id="note"></p>
   <ul id="list"></ul>
   <section class="hab"><h2 id="habT">Habit</h2><div id="habs"></div></section>
+  </div>
+  <div id="notesView" hidden>
+    <div class="nedit">
+      <textarea id="nt" placeholder="メモを書く(1行目がタイトルになります)"></textarea>
+      <div class="nrow"><button class="btn" id="nSave">保存</button><button class="ghost" id="nClear" style="flex:1">クリア</button></div>
+    </div>
+    <input id="nq" placeholder="🔍 メモを検索" autocomplete="off">
+    <div id="nlist"></div>
+  </div>
   <button class="ghost" id="perm" hidden style="margin-top:14px">🔔 ブラウザ通知を許可する</button>
 </main>
 <script>
-var KEY="onetask_v2",OLD="onetask_v1",MAX=3,view="now",tagF="",editId=null,alerts=[],tasks=[],habits=[];
+var KEY="onetask_v2",OLD="onetask_v1",MAX=3,view="now",tagF="",editId=null,alerts=[],tasks=[],habits=[],notes=[],nEdit=null,page="tasks";
 var ZN=["now","next","someday"],ZI={now:"🔥",next:"🌅",someday:"🌙"},PAL=[["#8fe3e8","#1f3d8f"],["#0e7a3f","#f2b632"],["#ffb3c1","#e8294f"],["#0b2f87","#ffc0cb"],["#f8b62d","#fff7e6"],["#ff5a00","#111111"],["#0f6fff","#ffffff"]];
 var REML={"0":"ちょうど","10":"10分前","60":"1時間前","1440":"1日前"};
-try{var d0=JSON.parse(localStorage.getItem(KEY)||"null");if(d0){tasks=d0.tasks||[];habits=d0.habits||[]}else{tasks=JSON.parse(localStorage.getItem(OLD)||"[]")}}catch(e){}
+try{var d0=JSON.parse(localStorage.getItem(KEY)||"null");if(d0){tasks=d0.tasks||[];habits=d0.habits||[];notes=d0.notes||[]}else{tasks=JSON.parse(localStorage.getItem(OLD)||"[]")}}catch(e){}
 tasks.forEach(function(t){
   if(!t.zone)t.zone=t.today?"now":"next";if(t.pri===undefined)t.pri=2;if(t.tag===undefined)t.tag="";
   if(t.next===undefined)t.next=(t.due&&t.rem!==""&&t.rem!==undefined&&!t.notified)?new Date(t.due).getTime()-Number(t.rem)*60000:null;
 });
-function save(){try{localStorage.setItem(KEY,JSON.stringify({tasks:tasks,habits:habits}))}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify({tasks:tasks,habits:habits,notes:notes}))}catch(e){}}
 function $(i){return document.getElementById(i)}
 function h(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!==undefined)e.textContent=txt;return e}
 function find(id){return tasks.find(function(x){return x.id===id})}
@@ -263,6 +288,40 @@ function render(){
     r.appendChild(c);r.appendChild(bd);r.appendChild(xb);hb.appendChild(r);
   });
 }
+function nPage(p){
+  page=p;$("tasksView").hidden=p!=="tasks";$("notesView").hidden=p!=="notes";
+  document.querySelector(".bar").hidden=p!=="tasks";$("stat").hidden=p!=="tasks";
+  Array.prototype.forEach.call($("seg").children,function(b){b.classList.toggle("on",b.getAttribute("data-p")===p)});
+}
+function nClear(){nEdit=null;$("nt").value="";$("nSave").textContent="保存"}
+function nSave(){
+  var v=$("nt").value.trim();if(!v)return;
+  if(nEdit){var n=notes.find(function(x){return x.id===nEdit});n.text=v;n.at=Date.now()}
+  else notes.unshift({id:Date.now(),text:v,at:Date.now(),pin:false});
+  nClear();save();nRender();
+}
+function nRender(){
+  var q=$("nq").value.trim().toLowerCase(),box=$("nlist");box.innerHTML="";
+  var l=notes.filter(function(n){return !q||n.text.toLowerCase().indexOf(q)>=0});
+  l.sort(function(a,b){return (b.pin?1:0)-(a.pin?1:0)||b.at-a.at});
+  if(!l.length)box.appendChild(h("div","empty",notes.length?"見つかりませんでした":"まだメモはありません。思いついたことを気軽に書いてね"));
+  l.forEach(function(n,i){
+    var pc=PAL[i%7],c=h("div","ncard");c.style.background=pc[0];c.style.color=pc[1];
+    var ln=n.text.split("\n"),b=ln.slice(1).join("\n").trim();
+    c.appendChild(h("div","nt",(n.pin?"📌 ":"")+ln[0]));
+    if(b)c.appendChild(h("div","nb",b));
+    var f=h("div","nf"),d=new Date(n.at);
+    f.appendChild(h("span","",(d.getMonth()+1)+"/"+d.getDate()+" "+("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)));
+    var bs=h("span","");
+    var pn=h("button","ic",n.pin?"★":"☆");pn.setAttribute("aria-label","ピン留め");pn.onclick=function(){n.pin=!n.pin;save();nRender()};
+    var ed=h("button","ic","✎");ed.setAttribute("aria-label","編集");ed.onclick=function(){nEdit=n.id;$("nt").value=n.text;$("nSave").textContent="更新";$("nt").focus()};
+    var dl=h("button","ic","×");dl.setAttribute("aria-label","削除");dl.onclick=function(){notes=notes.filter(function(x){return x.id!==n.id});if(nEdit===n.id)nClear();save();nRender()};
+    bs.appendChild(pn);bs.appendChild(ed);bs.appendChild(dl);f.appendChild(bs);c.appendChild(f);box.appendChild(c);
+  });
+}
+$("seg").addEventListener("click",function(e){var p=e.target.getAttribute("data-p");if(p)nPage(p)});
+$("nSave").onclick=nSave;$("nClear").onclick=nClear;$("nq").addEventListener("input",nRender);
+nRender();
 $("addBtn").onclick=submit;$("cancel").onclick=resetForm;
 $("in").addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.isComposing)submit()});
 try{if(window.Notification&&Notification.permission==="default")$("perm").hidden=false}catch(e){}
