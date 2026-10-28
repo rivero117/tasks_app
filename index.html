@@ -77,9 +77,14 @@ li.done .chk{background:var(--fg,#0c0c0c)}
 #nq{margin-bottom:12px;border-radius:99px;padding:12px 18px}
 #nlist{display:grid;gap:8px}
 .ncard{border-radius:30px;padding:16px 14px 12px 18px;display:grid;gap:6px}
-.nt{font-size:20px;font-weight:900;line-height:1.25;word-break:break-word}
-.nb{font-size:14px;opacity:.85;white-space:pre-wrap;word-break:break-word;font-weight:600;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.nt{font-size:24px;font-weight:900;line-height:1.2;word-break:break-word}
+.nb{font-size:14px;opacity:.85;white-space:pre-wrap;word-break:break-word;font-weight:600;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .nf{display:flex;justify-content:space-between;align-items:center;font-size:12px;opacity:.9}
+#ntitle{font-size:22px;font-weight:900;padding:12px 16px}
+.nedit textarea{font-size:15px}
+.ncard{cursor:pointer}
+.ncard.open .nb{display:block;overflow:visible;font-size:17px;line-height:1.6}
+.nmore{font-size:12px;opacity:.8}
 </style>
 </head>
 <body>
@@ -121,7 +126,7 @@ li.done .chk{background:var(--fg,#0c0c0c)}
   </div>
   <div id="notesView" hidden>
     <div class="nedit">
-      <textarea id="nt" placeholder="メモを書く(1行目がタイトルになります)"></textarea>
+      <input id="ntitle" placeholder="タイトル" autocomplete="off"><textarea id="nt" placeholder="本文を書く"></textarea>
       <div class="nrow"><button class="btn" id="nSave">保存</button><button class="ghost" id="nClear" style="flex:1">クリア</button></div>
     </div>
     <input id="nq" placeholder="🔍 メモを検索" autocomplete="off">
@@ -293,29 +298,33 @@ function nPage(p){
   document.querySelector(".bar").hidden=p!=="tasks";$("stat").hidden=p!=="tasks";
   Array.prototype.forEach.call($("seg").children,function(b){b.classList.toggle("on",b.getAttribute("data-p")===p)});
 }
-function nClear(){nEdit=null;$("nt").value="";$("nSave").textContent="保存"}
+notes.forEach(function(n){if(n.title===undefined){var l=(n.text||"").split("\n");n.title=l[0];n.body=l.slice(1).join("\n").trim();delete n.text}});
+var nOpen={};
+function nClear(){nEdit=null;$("ntitle").value="";$("nt").value="";$("nSave").textContent="保存"}
 function nSave(){
-  var v=$("nt").value.trim();if(!v)return;
-  if(nEdit){var n=notes.find(function(x){return x.id===nEdit});n.text=v;n.at=Date.now()}
-  else notes.unshift({id:Date.now(),text:v,at:Date.now(),pin:false});
+  var ti=$("ntitle").value.trim(),bd=$("nt").value.trim();if(!ti&&!bd)return;
+  if(!ti){var l=bd.split("\n");ti=l[0];bd=l.slice(1).join("\n").trim()}
+  if(nEdit){var n=notes.find(function(x){return x.id===nEdit});n.title=ti;n.body=bd;n.at=Date.now()}
+  else notes.unshift({id:Date.now(),title:ti,body:bd,at:Date.now(),pin:false});
   nClear();save();nRender();
 }
 function nRender(){
   var q=$("nq").value.trim().toLowerCase(),box=$("nlist");box.innerHTML="";
-  var l=notes.filter(function(n){return !q||n.text.toLowerCase().indexOf(q)>=0});
+  var l=notes.filter(function(n){return !q||(n.title+"\n"+n.body).toLowerCase().indexOf(q)>=0});
   l.sort(function(a,b){return (b.pin?1:0)-(a.pin?1:0)||b.at-a.at});
   if(!l.length)box.appendChild(h("div","empty",notes.length?"見つかりませんでした":"まだメモはありません。思いついたことを気軽に書いてね"));
   l.forEach(function(n,i){
-    var pc=PAL[i%7],c=h("div","ncard");c.style.background=pc[0];c.style.color=pc[1];
-    var ln=n.text.split("\n"),b=ln.slice(1).join("\n").trim();
-    c.appendChild(h("div","nt",(n.pin?"📌 ":"")+ln[0]));
-    if(b)c.appendChild(h("div","nb",b));
-    var f=h("div","nf"),d=new Date(n.at);
-    f.appendChild(h("span","",(d.getMonth()+1)+"/"+d.getDate()+" "+("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)));
+    var pc=PAL[i%7],c=h("div","ncard"+(nOpen[n.id]?" open":""));c.style.background=pc[0];c.style.color=pc[1];
+    c.onclick=function(){nOpen[n.id]=!nOpen[n.id];nRender()};
+    c.appendChild(h("div","nt",(n.pin?"📌 ":"")+n.title));
+    if(n.body)c.appendChild(h("div","nb",n.body));
+    var long=n.body&&(n.body.length>60||n.body.split("\n").length>3);
+    var f=h("div","nf"),d=new Date(n.at),dt=(d.getMonth()+1)+"/"+d.getDate()+" "+("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);
+    f.appendChild(h("span","nmore",dt+(long?(nOpen[n.id]?"  ▴ 閉じる":"  ▾ 全文を見る"):"")));
     var bs=h("span","");
-    var pn=h("button","ic",n.pin?"★":"☆");pn.setAttribute("aria-label","ピン留め");pn.onclick=function(){n.pin=!n.pin;save();nRender()};
-    var ed=h("button","ic","✎");ed.setAttribute("aria-label","編集");ed.onclick=function(){nEdit=n.id;$("nt").value=n.text;$("nSave").textContent="更新";$("nt").focus()};
-    var dl=h("button","ic","×");dl.setAttribute("aria-label","削除");dl.onclick=function(){notes=notes.filter(function(x){return x.id!==n.id});if(nEdit===n.id)nClear();save();nRender()};
+    var pn=h("button","ic",n.pin?"★":"☆");pn.setAttribute("aria-label","ピン留め");pn.onclick=function(e){e.stopPropagation();n.pin=!n.pin;save();nRender()};
+    var ed=h("button","ic","✎");ed.setAttribute("aria-label","編集");ed.onclick=function(e){e.stopPropagation();nEdit=n.id;$("ntitle").value=n.title;$("nt").value=n.body;$("nSave").textContent="更新";$("ntitle").focus()};
+    var dl=h("button","ic","×");dl.setAttribute("aria-label","削除");dl.onclick=function(e){e.stopPropagation();notes=notes.filter(function(x){return x.id!==n.id});if(nEdit===n.id)nClear();save();nRender()};
     bs.appendChild(pn);bs.appendChild(ed);bs.appendChild(dl);f.appendChild(bs);c.appendChild(f);box.appendChild(c);
   });
 }
