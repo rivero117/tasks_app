@@ -132,6 +132,7 @@ li.done .chk{background:var(--fg,#0c0c0c)}
     <input id="nq" placeholder="🔍 メモを検索" autocomplete="off">
     <div id="nlist"></div>
   </div>
+  <section class="hab" id="bk"><h2>💾 バックアップ</h2><div class="hs">データをコピーして、別の端末やブラウザに貼り付けて移せます</div><button class="btn" id="bkCopy" style="margin-top:10px;padding:12px 22px">データをコピー</button><textarea id="bkText" rows="3" placeholder="移したいときは、ここに貼り付けて「読み込む」" style="margin-top:10px"></textarea><button class="ghost" id="bkLoad" style="margin-top:8px;width:100%">読み込む(今のデータを置き換え)</button><div class="msg" id="bkMsg" style="margin:8px 0 0"></div></section>
   <button class="ghost" id="perm" hidden style="margin-top:14px">🔔 ブラウザ通知を許可する</button>
 </main>
 <script>
@@ -328,6 +329,18 @@ function nRender(){
     bs.appendChild(pn);bs.appendChild(ed);bs.appendChild(dl);f.appendChild(bs);c.appendChild(f);box.appendChild(c);
   });
 }
+var bkArm=false;
+function bm(s){$("bkMsg").textContent=s}
+$("bkCopy").onclick=function(){
+  var s=JSON.stringify({v:2,tasks:tasks,habits:habits,notes:notes});$("bkText").value=s;
+  try{navigator.clipboard.writeText(s).then(function(){bm("コピーしました。別の場所に貼り付けて保管してね")},function(){bm("下の欄の文字を全選択してコピーしてね")})}catch(e){bm("下の欄の文字を全選択してコピーしてね")}
+};
+$("bkLoad").onclick=function(){
+  var d;try{d=JSON.parse($("bkText").value.trim());if(!d||!Array.isArray(d.tasks))throw 0}catch(e){bm("読み込めませんでした。コピーしたデータをそのまま貼り付けてね");bkArm=false;return}
+  if(!bkArm){bkArm=true;$("bkLoad").textContent="もう一度押すと、今のデータが置き換わります";return}
+  tasks=d.tasks;habits=d.habits||[];notes=d.notes||[];save();bm("読み込みました。ページを開き直すと反映されます");
+  bkArm=false;$("bkLoad").textContent="読み込む(今のデータを置き換え)";try{location.reload()}catch(e){}
+};
 $("seg").addEventListener("click",function(e){var p=e.target.getAttribute("data-p");if(p)nPage(p)});
 $("nSave").onclick=nSave;$("nClear").onclick=nClear;$("nq").addEventListener("input",nRender);
 nRender();
